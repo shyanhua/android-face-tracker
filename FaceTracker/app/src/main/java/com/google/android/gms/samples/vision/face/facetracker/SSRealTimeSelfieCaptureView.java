@@ -44,35 +44,7 @@ class SSRealTimeSelfieCaptureView extends GraphicOverlay.Graphic
     private int mFaceId;
     private Integer faceId;
 
-    //Delegation
     private FaceGraphicDelegate faceGraphicDelegate;
-
-    public void setFaceGraphicDelegate(FaceGraphicDelegate faceGraphicDelegate) {
-        this.faceGraphicDelegate = faceGraphicDelegate;
-    }
-
-    /**
-     * Create face annotations here
-     */
-    SSRealTimeSelfieCaptureView(GraphicOverlay overlay)
-    {
-        super(overlay);
-    }
-
-    void setId(int id)
-    {
-        mFaceId = id;
-    }
-
-    /**
-     * Updates the face instance from the detection of the most recent frame.  Invalidates the
-     * relevant portions of the overlay to trigger a redraw.
-     */
-    void updateFace(Face face)
-    {
-        mFace = face;
-        postInvalidate();
-    }
 
     /**
      * Detect & draws the face annotations for position on the supplied canvas.
@@ -101,7 +73,6 @@ class SSRealTimeSelfieCaptureView extends GraphicOverlay.Graphic
             resetFlag();
         }
 
-        //Shyan
         //detect front face
         if (flagContinue == false)
         {
@@ -165,6 +136,45 @@ class SSRealTimeSelfieCaptureView extends GraphicOverlay.Graphic
         }
     }
 
+    //==============================================================================================
+    // Delegation
+    //==============================================================================================
+
+    public void setFaceGraphicDelegate(FaceGraphicDelegate faceGraphicDelegate)
+    {
+        this.faceGraphicDelegate = faceGraphicDelegate;
+    }
+
+    //==============================================================================================
+    // SSRealTimeSelfieCaptureView Constructor
+    //==============================================================================================
+
+    /**
+     * Create face annotations here
+     */
+    SSRealTimeSelfieCaptureView(GraphicOverlay overlay)
+    {
+        super(overlay);
+    }
+
+    //==============================================================================================
+    // Public methods
+    //==============================================================================================
+
+    public void setId(int id)
+    {
+        mFaceId = id;
+    }
+
+    /**
+     * Updates the face instance from the detection of the most recent frame.  Invalidates the
+     * relevant portions of the overlay to trigger a redraw.
+     */
+    public void updateFace(Face face)
+    {
+        mFace = face;
+        postInvalidate();
+    }
 
     //==============================================================================================
     // Private Method

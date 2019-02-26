@@ -14,7 +14,9 @@ import android.provider.MediaStore;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -34,16 +36,17 @@ import java.io.IOException;
 import java.sql.Timestamp;
 import java.util.Date;
 
-public class SSRealTimeSelfieCameraView
+public class SSRealTimeSelfieCaptureCameraView
 {
-    private static final int RC_HANDLE_GMS = 9001;
     private CameraSource mCameraSource = null;
     public GraphicOverlay mGraphicOverlay;
     public CameraSourcePreview mPreview;
+
+    private static final int RC_HANDLE_GMS = 9001;
     public static final int RC_HANDLE_CAMERA_PERM = 2;
     public static final String TAG = "FaceTracker";
 
-    private Context context, baseContext;
+    private Context context;
     private Activity activity;
 
     //==============================================================================================
@@ -91,16 +94,19 @@ public class SSRealTimeSelfieCameraView
         final String[] permissions = new String[]{Manifest.permission.CAMERA};
 
         if (!ActivityCompat.shouldShowRequestPermissionRationale(activity,
-                Manifest.permission.CAMERA)) {
+                Manifest.permission.CAMERA))
+        {
             ActivityCompat.requestPermissions(activity, permissions, RC_HANDLE_CAMERA_PERM);
             return;
         }
 
         final Activity thisActivity = activity;
 
-        View.OnClickListener listener = new View.OnClickListener() {
+        View.OnClickListener listener = new View.OnClickListener()
+        {
             @Override
-            public void onClick(View view) {
+            public void onClick(View view)
+            {
                 ActivityCompat.requestPermissions(thisActivity, permissions,
                         RC_HANDLE_CAMERA_PERM);
             }
@@ -122,14 +128,14 @@ public class SSRealTimeSelfieCameraView
         FaceDetector detector = new FaceDetector.Builder(context)
                 .setClassificationType(FaceDetector.ALL_CLASSIFICATIONS)
                 .setLandmarkType(FaceDetector.ALL_LANDMARKS)
-                .setMode(FaceDetector.ACCURATE_MODE) //Shyan
+                .setMode(FaceDetector.ACCURATE_MODE)
                 .build();
 
-        detector.setProcessor(
-                new MultiProcessor.Builder<>(new GraphicFaceTrackerFactory())
+        detector.setProcessor(new MultiProcessor.Builder<>(new GraphicFaceTrackerFactory())
                         .build());
 
-        if (!detector.isOperational()) {
+        if (!detector.isOperational())
+        {
             // Note: The first time that an app using face API is installed on a device, GMS will
             // download a native library to the device in order to do detection.  Usually this
             // completes before the app is run for the first time.  But if that download has not yet
@@ -143,19 +149,27 @@ public class SSRealTimeSelfieCameraView
 
         mCameraSource = new CameraSource.Builder(context, detector)
                 .setRequestedPreviewSize(640, 480)
-                .setFacing(CameraSource.CAMERA_FACING_FRONT) //Shyan
+                .setFacing(CameraSource.CAMERA_FACING_FRONT)
                 .setRequestedFps(30.0f)
                 .build();
     }
 
     public void cameraPermission()
     {
-        // Check for the camera permission before accessing the camera.  If the
+        //Load xml
+        activity.setContentView(R.layout.main);
+        mPreview = (CameraSourcePreview) activity.findViewById(R.id.preview);
+        mGraphicOverlay = (GraphicOverlay) activity.findViewById(R.id.faceOverlay);
+
+        // Check for the camera permission before accessing the camera. If the
         // permission is not granted yet, request permission.
         int rc = ActivityCompat.checkSelfPermission(context, Manifest.permission.CAMERA);
-        if (rc == PackageManager.PERMISSION_GRANTED) {
+        if (rc == PackageManager.PERMISSION_GRANTED)
+        {
             createCameraSource();
-        } else {
+        }
+        else
+        {
             requestCameraPermission();
         }
     }
@@ -178,14 +192,13 @@ public class SSRealTimeSelfieCameraView
     }
 
     //==============================================================================================
-    // SSRealTimeSelfieCameraView Constructor
+    // SSRealTimeSelfieCaptureCameraView Constructor
     //==============================================================================================
 
-    SSRealTimeSelfieCameraView(Context context, Activity activity, Context baseContext)
+    SSRealTimeSelfieCaptureCameraView(Context context, Activity activity)
     {
         this.context = context;
         this.activity = activity;
-        this.baseContext = baseContext;
     }
 
     //==============================================================================================
@@ -214,7 +227,7 @@ public class SSRealTimeSelfieCameraView
         private GraphicOverlay mOverlay;
         private SSRealTimeSelfieCaptureView mSSRealTimeSelfieCaptureView;
         private File imageFile, dir;
-        private float rotation = 270;
+        private float rotation = 0;
 
         GraphicFaceTracker(GraphicOverlay overlay)
         {
@@ -249,7 +262,7 @@ public class SSRealTimeSelfieCameraView
                         Toast.makeText(context,"Please enable storage in setting.", Toast.LENGTH_SHORT).show();
                         return;
                     }
-                    Toast.makeText(context,"Captured !",Toast.LENGTH_SHORT).show();
+                    Toast.makeText(context,"Captured !",Toast.LENGTH_LONG).show();
                 }
 
                 @Override
@@ -258,7 +271,8 @@ public class SSRealTimeSelfieCameraView
                     mCameraSource.takePicture(null, new CameraSource.PictureCallback()
                     {
                         @Override
-                        public void onPictureTaken(byte[] bytes) {
+                        public void onPictureTaken(byte[] bytes)
+                        {
                             try
                             {
                                 // convert byte array into bitmap
@@ -282,7 +296,8 @@ public class SSRealTimeSelfieCameraView
                                 {
                                     success = dir.mkdirs();
                                 }
-                                if (success) {
+                                if (success)
+                                {
                                     Date date = new Date();
                                     imageFile = new File(dir.getAbsolutePath()
                                             + File.separator
@@ -293,8 +308,7 @@ public class SSRealTimeSelfieCameraView
                                 }
                                 else
                                 {
-                                    Toast.makeText(baseContext, "Image Not saved",
-                                            Toast.LENGTH_SHORT).show();
+                                    //Image not saved.
                                     return;
                                 }
                                 ByteArrayOutputStream ostream = new ByteArrayOutputStream();

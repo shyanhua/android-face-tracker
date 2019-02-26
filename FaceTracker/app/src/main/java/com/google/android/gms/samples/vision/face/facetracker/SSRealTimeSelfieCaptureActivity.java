@@ -21,6 +21,7 @@ import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
+import android.view.ViewGroup;
 
 import com.google.android.gms.samples.vision.face.facetracker.ui.camera.CameraSourcePreview;
 import com.google.android.gms.samples.vision.face.facetracker.ui.camera.GraphicOverlay;
@@ -30,9 +31,9 @@ import com.google.android.gms.samples.vision.face.facetracker.ui.camera.GraphicO
  * Activity for the face tracker app.  This app detects faces with the rear facing camera, and draws
  * overlay graphics to indicate the position, size, and ID of each face.
  */
-public final class SSRealTimeSelfieCaptureActivity extends AppCompatActivity {
-
-    private SSRealTimeSelfieCameraView ssRealTimeSelfieCameraView;
+public final class SSRealTimeSelfieCaptureActivity extends AppCompatActivity
+{
+    private SSRealTimeSelfieCaptureCameraView ssRealTimeSelfieCaptureCameraView;
 
     //==============================================================================================
     // Activity cycles
@@ -42,18 +43,12 @@ public final class SSRealTimeSelfieCaptureActivity extends AppCompatActivity {
      * Initializes the UI and initiates the creation of a face detector.
      */
     @Override
-    public void onCreate(Bundle icicle)
+    public void onCreate(Bundle savedInstanceState)
     {
-        super.onCreate(icicle);
-        setContentView(R.layout.main);
-
-        //init ssRealTimeSelfieCameraView
-        ssRealTimeSelfieCameraView = new SSRealTimeSelfieCameraView(getApplicationContext(), this, getBaseContext());
-
-        ssRealTimeSelfieCameraView.mPreview = (CameraSourcePreview) findViewById(R.id.preview);
-        ssRealTimeSelfieCameraView.mGraphicOverlay = (GraphicOverlay) findViewById(R.id.faceOverlay);
-
-        ssRealTimeSelfieCameraView.cameraPermission();
+        super.onCreate(savedInstanceState);
+        //init ssRealTimeSelfieCaptureCameraView
+        ssRealTimeSelfieCaptureCameraView = new SSRealTimeSelfieCaptureCameraView(getApplicationContext(), this);
+        ssRealTimeSelfieCaptureCameraView.cameraPermission();
     }
 
     /**
@@ -63,8 +58,7 @@ public final class SSRealTimeSelfieCaptureActivity extends AppCompatActivity {
     protected void onResume()
     {
         super.onResume();
-
-        ssRealTimeSelfieCameraView.startCameraSource();
+        ssRealTimeSelfieCaptureCameraView.startCameraSource();
     }
 
     /**
@@ -74,7 +68,7 @@ public final class SSRealTimeSelfieCaptureActivity extends AppCompatActivity {
     protected void onPause()
     {
         super.onPause();
-        ssRealTimeSelfieCameraView.stop();
+        ssRealTimeSelfieCaptureCameraView.stop();
     }
 
     /**
@@ -85,7 +79,7 @@ public final class SSRealTimeSelfieCaptureActivity extends AppCompatActivity {
     protected void onDestroy()
     {
         super.onDestroy();
-        ssRealTimeSelfieCameraView.release();
+        ssRealTimeSelfieCaptureCameraView.release();
     }
 
     /**
@@ -107,22 +101,22 @@ public final class SSRealTimeSelfieCaptureActivity extends AppCompatActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults)
     {
-        if (requestCode != ssRealTimeSelfieCameraView.RC_HANDLE_CAMERA_PERM)
+        if (requestCode != ssRealTimeSelfieCaptureCameraView.RC_HANDLE_CAMERA_PERM)
         {
-            Log.d(ssRealTimeSelfieCameraView.TAG, "Got unexpected permission result: " + requestCode);
+            Log.d(ssRealTimeSelfieCaptureCameraView.TAG, "Got unexpected permission result: " + requestCode);
             super.onRequestPermissionsResult(requestCode, permissions, grantResults);
             return;
         }
 
         if (grantResults.length != 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED)
         {
-            Log.d(ssRealTimeSelfieCameraView.TAG, "Camera permission granted - initialize the camera source");
+            Log.d(ssRealTimeSelfieCaptureCameraView.TAG, "Camera permission granted - initialize the camera source");
             // we have permission, so create the camerasource
-            ssRealTimeSelfieCameraView.createCameraSource();
+            ssRealTimeSelfieCaptureCameraView.createCameraSource();
             return;
         }
 
-        Log.e(ssRealTimeSelfieCameraView.TAG, "Permission not granted: results len = " + grantResults.length +
+        Log.e(ssRealTimeSelfieCaptureCameraView.TAG, "Permission not granted: results len = " + grantResults.length +
                 " Result code = " + (grantResults.length > 0 ? grantResults[0] : "(empty)"));
 
         DialogInterface.OnClickListener listener = new DialogInterface.OnClickListener()
