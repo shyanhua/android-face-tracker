@@ -32,7 +32,7 @@
             android:value="face" />
 
         <activity
-            android:name="com.google.android.gms.samples.vision.face.facetracker.SSRealTimeSelfieCaptureActivity"
+            android:name="com.google.android.gms.samples.vision.face.facetracker.RealTimeSelfieCaptureActivity"
             android:icon="@drawable/icon"
             android:label="Face Tracker"
             android:theme="@style/Theme.AppCompat.NoActionBar"
