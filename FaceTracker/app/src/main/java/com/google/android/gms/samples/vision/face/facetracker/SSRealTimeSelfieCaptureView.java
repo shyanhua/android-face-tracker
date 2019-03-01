@@ -267,20 +267,20 @@ public class SSRealTimeSelfieCaptureView extends FrameLayout implements FaceGrap
 
         float faceY = face.getEulerY();
 
-        //get Face ID
+        //Get Face ID
         if (flagFaceId == false)
         {
             faceId = id;
             flagFaceId = true;
         }
 
-        //if face id changed then reset flag
+        //If face id changed then reset flag
         if (flagFaceId == true && id > faceId)
         {
             resetFlag();
         }
 
-        //detect front face
+        //Detect front face
         if (flagContinue == false)
         {
             if (faceY > -12 && faceY < 12)
@@ -291,10 +291,10 @@ public class SSRealTimeSelfieCaptureView extends FrameLayout implements FaceGrap
             }
         }
 
-        //after front face , detect left face then right face
+        //After front face , detect left face then right face
         if (flagContinue == true)
         {
-            //left face
+            //Left face
             if (flagFaceLeft == false)
             {
                 if (faceY < -30)
@@ -304,7 +304,7 @@ public class SSRealTimeSelfieCaptureView extends FrameLayout implements FaceGrap
                     return;
                 }
             }
-            //right face
+            //Right face
             if (flagFaceLeft == true)
             {
                 if (flagFaceRight == false)
@@ -319,7 +319,7 @@ public class SSRealTimeSelfieCaptureView extends FrameLayout implements FaceGrap
             }
         }
 
-        //detect smile after left face and right face detected
+        //Detect smile after left face and right face detected
         if (flagFaceLeft == true && flagFaceRight == true)
         {
             if (flagSmile == false)
@@ -341,7 +341,7 @@ public class SSRealTimeSelfieCaptureView extends FrameLayout implements FaceGrap
             }
         }
 
-        //selfie after smile
+        //Capture smile face save into gallery
         if(flagSmile == true && flagCapture == false)
         {
             mCameraSource.takePicture(null, new CameraSource.PictureCallback()
