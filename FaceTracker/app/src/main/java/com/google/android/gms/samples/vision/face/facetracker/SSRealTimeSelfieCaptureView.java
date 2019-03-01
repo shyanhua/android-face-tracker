@@ -13,9 +13,11 @@ import android.os.Environment;
 import android.provider.MediaStore;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
+import android.util.AttributeSet;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.Toast;
+import android.widget.FrameLayout;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
@@ -34,22 +36,150 @@ import java.io.IOException;
 import java.sql.Timestamp;
 import java.util.Date;
 
-public class SSRealTimeSelfieCaptureView
+public class SSRealTimeSelfieCaptureView extends FrameLayout implements FaceGraphicTrackerDelegate
 {
+    private Context context;
+    private Activity activity;
+
     private CameraSource mCameraSource = null;
     private GraphicOverlay mGraphicOverlay;
     private CameraSourcePreview mPreview;
 
+    //Static variables
     private static final int RC_HANDLE_GMS = 9001;
     private static final int RC_HANDLE_CAMERA_PERM = 2;
     public static final String TAG = "FaceTracker";
 
-    private Context context;
-    private Activity activity;
+    //Scanner logic
+    private Boolean flagContinue = false, flagFaceRight = false, flagFaceLeft = false, flagFaceId = false, flagSmile = false, flagCapture = false;
+    private Integer faceId;
+    private File imageFile, dir;
+    private float rotation = 0;
+
+    // ============================================================================================
+    // SSFaceScannerViewDelegate
+    // ============================================================================================
+    private SSFaceScannerViewDelegate ssFaceScannerViewDelegate = null;
+
+    public void setDelegate(SSFaceScannerViewDelegate delegate, Activity activity)
+    {
+        this.ssFaceScannerViewDelegate = delegate;
+        this.activity = activity;
+    }
 
     //==============================================================================================
-    // Camera Setup
+    // Public Methods - Camera Setup
     //==============================================================================================
+
+    /**
+     * Starts or restarts the camera source, if it exists.  If the camera source doesn't exist yet
+     * (e.g., because onResume was called before the camera source was created), this will be called
+     * again when the camera source is created.
+     */
+    public void startCameraSource()
+    {
+        // check that the device has play services available.
+        int code = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context);
+        if (code != ConnectionResult.SUCCESS)
+        {
+            Dialog dlg =
+                    GoogleApiAvailability.getInstance().getErrorDialog(activity, code, RC_HANDLE_GMS);
+            dlg.show();
+        }
+
+        if (mCameraSource != null)
+        {
+            try
+            {
+                mPreview.start(mCameraSource, mGraphicOverlay);
+            }
+            catch (IOException e)
+            {
+                Log.e(TAG, "Unable to start camera source.", e);
+                mCameraSource.release();
+                mCameraSource = null;
+            }
+        }
+    }
+
+    /**
+     * Creates and starts the camera.  Note that this uses a higher resolution in comparison
+     * to other detection examples to enable the barcode detector to detect small barcodes
+     * at long distances.
+     */
+    public void createCameraSource()
+    {
+        FaceDetector detector = new FaceDetector.Builder(context)
+                .setClassificationType(FaceDetector.ALL_CLASSIFICATIONS)
+                .setLandmarkType(FaceDetector.ALL_LANDMARKS)
+                .setMode(FaceDetector.ACCURATE_MODE)
+                .build();
+
+        GraphicFaceTrackerFactory graphicFaceTrackerFactory = new GraphicFaceTrackerFactory(mGraphicOverlay,this);
+
+        detector.setProcessor(new MultiProcessor.Builder<>(graphicFaceTrackerFactory).build());
+
+        if (!detector.isOperational())
+        {
+            // Note: The first time that an app using face API is installed on a device, GMS will
+            // download a native library to the device in order to do detection.  Usually this
+            // completes before the app is run for the first time.  But if that download has not yet
+            // completed, then the above call will not detect any faces.
+            //
+            // isOperational() can be used to check if the required native library is currently
+            // available.  The detector will automatically become operational once the library
+            // download completes on device.
+            Log.w(TAG, "Face detector dependencies are not yet available.");
+        }
+
+        mCameraSource = new CameraSource.Builder(context, detector)
+                .setRequestedPreviewSize(640, 480)
+                .setFacing(CameraSource.CAMERA_FACING_FRONT)
+                .setRequestedFps(30.0f)
+                .build();
+    }
+
+    public void cameraPermission()
+    {
+        // Check for the camera permission before accessing the camera. If the
+        // permission is not granted yet, request permission.
+        int requestCamera = ActivityCompat.checkSelfPermission(context, Manifest.permission.CAMERA);
+        if (requestCamera == PackageManager.PERMISSION_GRANTED)
+        {
+            createCameraSource();
+        }
+        else
+        {
+            requestCameraPermission();
+        }
+    }
+
+    public void stop()
+    {
+        mPreview.stop();
+    }
+
+    public void release()
+    {
+        if (mCameraSource != null)
+        {
+            mCameraSource.release();
+        }
+    }
+
+    //==============================================================================================
+    // Private Methods
+    //==============================================================================================
+
+    private void initData()
+    {
+        //Load xml
+        LayoutInflater layoutInflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+        final View view = layoutInflater.inflate(R.layout.viewfacescanner, this);
+
+        mPreview = (CameraSourcePreview) view.findViewById(R.id.view_ssface_scanner_preview);
+        mGraphicOverlay = (GraphicOverlay) view.findViewById(R.id.view_ssface_scanner_faceOverlay);
+    }
 
     /**
      * Handles the requesting of the camera permission.  This includes
@@ -87,114 +217,208 @@ public class SSRealTimeSelfieCaptureView
                 .show();
     }
 
-    /**
-     * Starts or restarts the camera source, if it exists.  If the camera source doesn't exist yet
-     * (e.g., because onResume was called before the camera source was created), this will be called
-     * again when the camera source is created.
-     */
-    public void startCameraSource()
+    private void resetFlag()
     {
-        // check that the device has play services available.
-        int code = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context);
-        if (code != ConnectionResult.SUCCESS)
+        flagSmile = false;
+        flagContinue = false;
+        flagFaceLeft = false;
+        flagFaceRight = false;
+        flagFaceId = false;
+    }
+
+    //==============================================================================================
+    // SSRealTimeSelfieCaptureView Constructors
+    //==============================================================================================
+
+    /** Init when enter from xml */
+    public SSRealTimeSelfieCaptureView(Context context)
+    {
+        super(context);
+        this.context = context;
+        initData();
+    }
+
+    /** Init when enter from xml */
+    public SSRealTimeSelfieCaptureView(Context context, AttributeSet attrs)
+    {
+        super(context,attrs);
+        this.context = context;
+        initData();
+    }
+
+    /** Init when enter from xml */
+    public SSRealTimeSelfieCaptureView(Context context, AttributeSet attrs, int defStyleAttr)
+    {
+        super(context, attrs, defStyleAttr);
+        this.context = context;
+        initData();
+    }
+
+    //==============================================================================================
+    // FaceGraphicTrackerDelegate
+    //==============================================================================================
+    @Override
+    public void faceGraphicTrackerNewFaceDetected(Face face, Integer id)
+    {
+        if (face == null)
         {
-            Dialog dlg =
-                    GoogleApiAvailability.getInstance().getErrorDialog(activity, code, RC_HANDLE_GMS);
-            dlg.show();
+            return;
         }
 
-        if (mCameraSource != null)
+        float faceY = face.getEulerY();
+
+        //get Face ID
+        if (flagFaceId == false)
         {
-            try
+            faceId = id;
+            flagFaceId = true;
+        }
+
+        //if face id changed then reset flag
+        if (flagFaceId == true && id > faceId)
+        {
+            resetFlag();
+        }
+
+        //detect front face
+        if (flagContinue == false)
+        {
+            if (faceY > -12 && faceY < 12)
             {
-                mPreview.start(mCameraSource, mGraphicOverlay);
-            } catch (IOException e) {
-                Log.e(TAG, "Unable to start camera source.", e);
-                mCameraSource.release();
-                mCameraSource = null;
+                Log.d("Face","Front face detected");
+                flagContinue = true;
+                return;
             }
         }
-    }
 
-    /**
-     * Creates and starts the camera.  Note that this uses a higher resolution in comparison
-     * to other detection examples to enable the barcode detector to detect small barcodes
-     * at long distances.
-     */
-    public void createCameraSource()
-    {
-        FaceDetector detector = new FaceDetector.Builder(context)
-                .setClassificationType(FaceDetector.ALL_CLASSIFICATIONS)
-                .setLandmarkType(FaceDetector.ALL_LANDMARKS)
-                .setMode(FaceDetector.ACCURATE_MODE)
-                .build();
-
-        detector.setProcessor(new MultiProcessor.Builder<>(new GraphicFaceTrackerFactory())
-                        .build());
-
-        if (!detector.isOperational())
+        //after front face , detect left face then right face
+        if (flagContinue == true)
         {
-            // Note: The first time that an app using face API is installed on a device, GMS will
-            // download a native library to the device in order to do detection.  Usually this
-            // completes before the app is run for the first time.  But if that download has not yet
-            // completed, then the above call will not detect any faces.
-            //
-            // isOperational() can be used to check if the required native library is currently
-            // available.  The detector will automatically become operational once the library
-            // download completes on device.
-            Log.w(TAG, "Face detector dependencies are not yet available.");
+            //left face
+            if (flagFaceLeft == false)
+            {
+                if (faceY < -30)
+                {
+                    Log.d("Face","Left face detected");
+                    flagFaceLeft = true;
+                    return;
+                }
+            }
+            //right face
+            if (flagFaceLeft == true)
+            {
+                if (flagFaceRight == false)
+                {
+                    if (faceY > 30)
+                    {
+                        Log.d("Face","Right face detected");
+                        flagFaceRight = true;
+                        return;
+                    }
+                }
+            }
         }
 
-        mCameraSource = new CameraSource.Builder(context, detector)
-                .setRequestedPreviewSize(640, 480)
-                .setFacing(CameraSource.CAMERA_FACING_FRONT)
-                .setRequestedFps(30.0f)
-                .build();
-    }
-
-    public void cameraPermission()
-    {
-        //Load xml
-//        LayoutInflater layoutInflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-//        final View view = layoutInflater.inflate(R.layout.view, this);
-
-        mPreview = (CameraSourcePreview) activity.findViewById(R.id.preview);
-        mGraphicOverlay = (GraphicOverlay) activity.findViewById(R.id.faceOverlay);
-
-        // Check for the camera permission before accessing the camera. If the
-        // permission is not granted yet, request permission.
-        int requestCamera = ActivityCompat.checkSelfPermission(context, Manifest.permission.CAMERA);
-        if (requestCamera == PackageManager.PERMISSION_GRANTED)
+        //detect smile after left face and right face detected
+        if (flagFaceLeft == true && flagFaceRight == true)
         {
-            createCameraSource();
+            if (flagSmile == false)
+            {
+                if (face.getIsSmilingProbability() > 0.6)
+                {
+                    if (ActivityCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED)
+                    {
+                        Log.d("Face","Please enable storage");
+                        return;
+                    }
+                    if (ActivityCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED)
+                    {
+                        Log.d("Face","Captured !");
+                    }
+                    flagSmile = true;
+                    return;
+                }
+            }
         }
-        else
+
+        //selfie after smile
+        if(flagSmile == true && flagCapture == false)
         {
-            requestCameraPermission();
+            mCameraSource.takePicture(null, new CameraSource.PictureCallback()
+            {
+                @Override
+                public void onPictureTaken(byte[] bytes)
+                {
+                    try
+                    {
+                        // convert byte array into bitmap
+                        Bitmap loadedImage;
+                        Bitmap rotatedBitmap;
+                        loadedImage = BitmapFactory.decodeByteArray(bytes, 0,
+                                bytes.length);
+
+                        Matrix rotateMatrix = new Matrix();
+
+                        rotateMatrix.postRotate(rotation);
+                        rotatedBitmap = Bitmap.createBitmap(loadedImage, 0, 0,
+                                loadedImage.getWidth(), loadedImage.getHeight(),
+                                rotateMatrix, false);
+
+                        dir = new File(
+                                Environment.getExternalStorageDirectory(), "/MyPhotos/");
+
+                        boolean success = true;
+                        if (!dir.exists())
+                        {
+                            success = dir.mkdirs();
+                        }
+                        if (success)
+                        {
+                            Date date = new Date();
+                            imageFile = new File(dir.getAbsolutePath()
+                                    + File.separator
+                                    + new Timestamp(date.getTime()).toString()
+                                    + "Image.jpg");
+
+                            imageFile.createNewFile();
+                        }
+                        else
+                        {
+                            //Image not saved.
+                            return;
+                        }
+                        ByteArrayOutputStream ostream = new ByteArrayOutputStream();
+
+                        // save image into gallery
+                        rotatedBitmap.compress(Bitmap.CompressFormat.JPEG, 100, ostream);
+
+                        FileOutputStream fout = new FileOutputStream(imageFile);
+                        fout.write(ostream.toByteArray());
+                        fout.close();
+                        ContentValues values = new ContentValues();
+
+                        values.put(MediaStore.Images.Media.DATE_TAKEN,
+                                System.currentTimeMillis());
+                        values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+                        values.put(MediaStore.MediaColumns.DATA,
+                                imageFile.getAbsolutePath());
+
+                        activity.getContentResolver().insert(
+                                MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+
+                        //Delegate image to activity
+                        ssFaceScannerViewDelegate.captureCompletedForSelfie(loadedImage);
+
+                    }
+                    catch (Exception e)
+                    {
+                        e.printStackTrace();
+                    }
+                }
+            });
+            flagCapture = true;
+            return;
         }
-    }
-
-    public void stop()
-    {
-        mPreview.stop();
-    }
-
-    public void release()
-    {
-        if (mCameraSource != null)
-        {
-            mCameraSource.release();
-        }
-    }
-
-    //==============================================================================================
-    // SSRealTimeSelfieCaptureView Constructor
-    //==============================================================================================
-
-    SSRealTimeSelfieCaptureView(Context context, Activity activity)
-    {
-        this.context = context;
-        this.activity = activity;
     }
 
     //==============================================================================================
@@ -207,10 +431,25 @@ public class SSRealTimeSelfieCaptureView
      */
     private class GraphicFaceTrackerFactory implements MultiProcessor.Factory<Face>
     {
+        private FaceGraphicTrackerDelegate faceGraphicTrackerDelegate;
+
+        public GraphicFaceTrackerFactory(GraphicOverlay<FaceGraphic> barcodeGraphicOverlay, FaceGraphicTrackerDelegate delegate)
+        {
+            mGraphicOverlay = barcodeGraphicOverlay;
+            this.faceGraphicTrackerDelegate = delegate;
+        }
+
         @Override
         public Tracker<Face> create(Face face)
         {
-            return new GraphicFaceTracker(mGraphicOverlay);
+            FaceGraphic faceGraphic = new FaceGraphic(mGraphicOverlay);
+            GraphicFaceTracker graphicFaceTracker = new GraphicFaceTracker(mGraphicOverlay, faceGraphic);
+
+            if (faceGraphicTrackerDelegate != null)
+            {
+                graphicFaceTracker.setDelegate(faceGraphicTrackerDelegate);
+            }
+            return graphicFaceTracker;
         }
     }
 
@@ -220,127 +459,19 @@ public class SSRealTimeSelfieCaptureView
      */
     private class GraphicFaceTracker extends Tracker<Face>
     {
-        private GraphicOverlay mOverlay;
-        private FaceGraphic faceGraphic;
-        private File imageFile, dir;
-        private float rotation = 0;
+        private GraphicOverlay<FaceGraphic> mOverlay;
+        private FaceGraphic mFaceGraphic;
+        private FaceGraphicTrackerDelegate faceGraphicTrackerDelegate;
 
-        GraphicFaceTracker(GraphicOverlay overlay)
+        public void setDelegate(FaceGraphicTrackerDelegate delegate)
+        {
+            this.faceGraphicTrackerDelegate = delegate;
+        }
+
+        GraphicFaceTracker(GraphicOverlay overlay, FaceGraphic faceGraphic)
         {
             mOverlay = overlay;
-            faceGraphic = new FaceGraphic(overlay);
-
-            faceGraphic.setFaceGraphicDelegate(new FaceGraphic.FaceGraphicDelegate()
-            {
-                @Override
-                public void FrontFaceVerified()
-                {
-                    Toast.makeText(context,"Front Face detected, please show your left face to the camera.",Toast.LENGTH_SHORT).show();
-                }
-
-                @Override
-                public void LeftFaceVerified()
-                {
-                    Toast.makeText(context,"Left Face detected, please show your right face to the camera.",Toast.LENGTH_SHORT).show();
-                }
-
-                @Override
-                public void RightFaceVerified()
-                {
-                    Toast.makeText(context,"Right Face detected, please smile to take a selfie.",Toast.LENGTH_SHORT).show();
-                }
-
-                @Override
-                public void SmileFaceVerified()
-                {
-                    if (ActivityCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED)
-                    {
-                        Toast.makeText(context,"Please enable storage in setting.", Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    if (ActivityCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED)
-                    {
-                        Toast.makeText(context,"Captured !",Toast.LENGTH_LONG).show();
-                    }
-                }
-
-                @Override
-                public void FaceVerified()
-                {
-                    mCameraSource.takePicture(null, new CameraSource.PictureCallback()
-                    {
-                        @Override
-                        public void onPictureTaken(byte[] bytes)
-                        {
-                            try
-                            {
-                                // convert byte array into bitmap
-                                Bitmap loadedImage;
-                                Bitmap rotatedBitmap;
-                                loadedImage = BitmapFactory.decodeByteArray(bytes, 0,
-                                        bytes.length);
-
-                                Matrix rotateMatrix = new Matrix();
-
-                                rotateMatrix.postRotate(rotation);
-                                rotatedBitmap = Bitmap.createBitmap(loadedImage, 0, 0,
-                                        loadedImage.getWidth(), loadedImage.getHeight(),
-                                        rotateMatrix, false);
-
-                                dir = new File(
-                                        Environment.getExternalStorageDirectory(), "/MyPhotos/");
-
-                                boolean success = true;
-                                if (!dir.exists())
-                                {
-                                    success = dir.mkdirs();
-                                }
-                                if (success)
-                                {
-                                    Date date = new Date();
-                                    imageFile = new File(dir.getAbsolutePath()
-                                            + File.separator
-                                            + new Timestamp(date.getTime()).toString()
-                                            + "Image.jpg");
-
-                                    imageFile.createNewFile();
-                                }
-                                else
-                                {
-                                    //Image not saved.
-                                    return;
-                                }
-                                ByteArrayOutputStream ostream = new ByteArrayOutputStream();
-
-                                // save image into gallery
-                                rotatedBitmap.compress(Bitmap.CompressFormat.JPEG, 100, ostream);
-
-                                FileOutputStream fout = new FileOutputStream(imageFile);
-                                fout.write(ostream.toByteArray());
-                                fout.close();
-                                ContentValues values = new ContentValues();
-
-                                values.put(MediaStore.Images.Media.DATE_TAKEN,
-                                        System.currentTimeMillis());
-                                values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
-                                values.put(MediaStore.MediaColumns.DATA,
-                                        imageFile.getAbsolutePath());
-
-                                activity.getContentResolver().insert(
-                                        MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
-
-//                                Toast.makeText(context,"Captured !",Toast.LENGTH_SHORT).show();
-                                //saveToInternalStorage(loadedImage);
-                            }
-                            catch (Exception e)
-                            {
-                                e.printStackTrace();
-                            }
-                        }
-                    });
-                }
-
-            });
+            mFaceGraphic = faceGraphic;
         }
 
         /**
@@ -349,7 +480,7 @@ public class SSRealTimeSelfieCaptureView
         @Override
         public void onNewItem(int faceId, Face item)
         {
-            faceGraphic.setId(faceId);
+            mFaceGraphic.setId(faceId);
         }
 
         /**
@@ -358,8 +489,13 @@ public class SSRealTimeSelfieCaptureView
         @Override
         public void onUpdate(FaceDetector.Detections<Face> detectionResults, Face face)
         {
-            mOverlay.add(faceGraphic);
-            faceGraphic.updateFace(face);
+            mOverlay.add(mFaceGraphic);
+            mFaceGraphic.updateFace(face);
+
+            if(faceGraphicTrackerDelegate != null)
+            {
+                faceGraphicTrackerDelegate.faceGraphicTrackerNewFaceDetected(face, mFaceGraphic.getId());
+            }
         }
 
         /**
@@ -370,7 +506,7 @@ public class SSRealTimeSelfieCaptureView
         @Override
         public void onMissing(FaceDetector.Detections<Face> detectionResults)
         {
-            mOverlay.remove(faceGraphic);
+            mOverlay.remove(mFaceGraphic);
         }
 
         /**
@@ -380,7 +516,7 @@ public class SSRealTimeSelfieCaptureView
         @Override
         public void onDone()
         {
-            mOverlay.remove(faceGraphic);
+            mOverlay.remove(mFaceGraphic);
         }
 
     }

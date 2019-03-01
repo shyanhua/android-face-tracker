@@ -18,21 +18,25 @@ package com.google.android.gms.samples.vision.face.facetracker;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.media.Image;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
+
+import java.util.BitSet;
 
 
 /**
  * Activity for the face tracker app.  This app detects faces with the rear facing camera, and draws
  * overlay graphics to indicate the position, size, and ID of each face.
  */
-public final class RealTimeSelfieCaptureActivity extends AppCompatActivity
+public final class RealTimeSelfieCaptureActivity extends AppCompatActivity implements SSFaceScannerViewDelegate
 {
     private SSRealTimeSelfieCaptureView ssRealTimeSelfieCaptureView;
 
     //==============================================================================================
-    // Activity cycles
+    // Activity Cycles
     //==============================================================================================
 
     /**
@@ -42,11 +46,11 @@ public final class RealTimeSelfieCaptureActivity extends AppCompatActivity
     public void onCreate(Bundle savedInstanceState)
     {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.view);
+        setContentView(R.layout.activityfacescan);
 
-        //init ssRealTimeSelfieCaptureView
-        ssRealTimeSelfieCaptureView = new SSRealTimeSelfieCaptureView(getApplicationContext(), this);
+        initFaceScanner();
         ssRealTimeSelfieCaptureView.cameraPermission();
+
     }
 
     /**
@@ -99,26 +103,15 @@ public final class RealTimeSelfieCaptureActivity extends AppCompatActivity
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults)
     {
-//        if (requestCode != ssRealTimeSelfieCaptureCameraView.RC_HANDLE_CAMERA_PERM)
-//        {
-//            Log.d(ssRealTimeSelfieCaptureCameraView.TAG, "Got unexpected permission result: " + requestCode);
-//            super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-//            return;
-//        }
-
         //Permission granted
         if (grantResults.length != 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED)
         {
             Log.d(ssRealTimeSelfieCaptureView.TAG, "Camera permission granted - initialize the camera source");
 
-            // we have permission, so create the camerasource
+            // we have permission, so create the cameraSource
                 ssRealTimeSelfieCaptureView.createCameraSource();
                 return;
         }
-
-
-//        Log.e(ssRealTimeSelfieCaptureView.TAG, "Permission not granted: results len = " + grantResults.length +
-//                " Result code = " + (grantResults.length > 0 ? grantResults[0] : "(empty)"));
 
         DialogInterface.OnClickListener listener = new DialogInterface.OnClickListener()
         {
@@ -128,6 +121,7 @@ public final class RealTimeSelfieCaptureActivity extends AppCompatActivity
             }
         };
 
+        //Exit application if deny camera permission
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Face Tracker sample")
                 .setMessage(R.string.no_camera_permission)
@@ -135,4 +129,29 @@ public final class RealTimeSelfieCaptureActivity extends AppCompatActivity
                 .show();
     }
 
+    //==============================================================================================
+    // Button Action
+    //==============================================================================================
+
+
+    //==============================================================================================
+    // Private Methods
+    //==============================================================================================
+
+    private void initFaceScanner()
+    {
+        ssRealTimeSelfieCaptureView = (SSRealTimeSelfieCaptureView) findViewById(R.id.face_scanner);
+        ssRealTimeSelfieCaptureView.setDelegate(this, this);
+    }
+
+    //==============================================================================================
+    // SSFaceScannerViewDelegate
+    //==============================================================================================
+
+    @Override
+    public void captureCompletedForSelfie(Bitmap bitmap)
+    {
+        //Retrieve selfie image
+        Log.d("Test","Successful");
+    }
 }

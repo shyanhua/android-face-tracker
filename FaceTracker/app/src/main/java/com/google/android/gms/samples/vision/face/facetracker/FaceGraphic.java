@@ -27,24 +27,8 @@ import com.google.android.gms.vision.face.Face;
  */
 class FaceGraphic extends GraphicOverlay.Graphic
 {
-    public interface FaceGraphicDelegate
-    {
-        void FrontFaceVerified();
-        void LeftFaceVerified();
-        void RightFaceVerified();
-        void SmileFaceVerified();
-        void FaceVerified();
-    }
-
-    //Flag
-    private Boolean flagContinue = false, flagFaceRight = false, flagFaceLeft = false, flagFaceId = false, flagSmile = false, flagCapture = false;
-
-    //Face
     private volatile Face mFace;
     private int mFaceId;
-    private Integer faceId;
-
-    private FaceGraphicDelegate faceGraphicDelegate;
 
     /**
      * Detect & draws the face annotations for position on the supplied canvas.
@@ -53,96 +37,6 @@ class FaceGraphic extends GraphicOverlay.Graphic
     public void draw(Canvas canvas)
     {
         Face face = mFace;
-        if (face == null)
-        {
-            return;
-        }
-
-        float faceY = face.getEulerY();
-
-        //get Face ID
-        if (flagFaceId == false)
-        {
-            faceId = mFaceId;
-            flagFaceId = true;
-        }
-
-        //if face id changed then reset flag
-        if (flagFaceId == true && mFaceId > faceId)
-        {
-            resetFlag();
-        }
-
-        //detect front face
-        if (flagContinue == false)
-        {
-            if (faceY > -12 && faceY < 12)
-            {
-                faceGraphicDelegate.FrontFaceVerified();
-                flagContinue = true;
-                return;
-            }
-        }
-
-        //after front face , detect left face then right face
-        if (flagContinue == true)
-        {
-            //left face
-            if (flagFaceLeft == false)
-            {
-                if (faceY < -30)
-                {
-                    faceGraphicDelegate.LeftFaceVerified();
-                    flagFaceLeft = true;
-                    return;
-                }
-            }
-            //right face
-            if (flagFaceLeft == true)
-            {
-                if (flagFaceRight == false)
-                {
-                    if (faceY > 30)
-                    {
-                        faceGraphicDelegate.RightFaceVerified();
-                        flagFaceRight = true;
-                        return;
-                    }
-                }
-            }
-        }
-
-        //detect smile after left face and right face detected
-        if (flagFaceLeft == true && flagFaceRight == true)
-        {
-            if (flagSmile == false)
-            {
-                if (face.getIsSmilingProbability() > 0.6)
-                {
-                    faceGraphicDelegate.SmileFaceVerified();
-                    flagSmile = true;
-                    return;
-                }
-            }
-        }
-
-        //selfie after smile
-        if(flagSmile == true && flagCapture == false)
-        {
-            //TODO : After this the screen still able to take photo
-            faceGraphicDelegate.FaceVerified();
-            flagCapture = true;
-            return;
-        }
-    }
-
-    //==============================================================================================
-    // Delegation
-    //==============================================================================================
-
-    public void setFaceGraphicDelegate(FaceGraphicDelegate faceGraphicDelegate)
-    {
-        this.faceGraphicDelegate = faceGraphicDelegate;
     }
 
     //==============================================================================================
@@ -158,8 +52,13 @@ class FaceGraphic extends GraphicOverlay.Graphic
     }
 
     //==============================================================================================
-    // Public methods
+    // Public Methods
     //==============================================================================================
+
+    public int getId()
+    {
+        return mFaceId;
+    }
 
     public void setId(int id)
     {
@@ -175,18 +74,4 @@ class FaceGraphic extends GraphicOverlay.Graphic
         mFace = face;
         postInvalidate();
     }
-
-    //==============================================================================================
-    // Private Method
-    //==============================================================================================
-
-    private void resetFlag()
-    {
-        flagSmile = false;
-        flagContinue = false;
-        flagFaceLeft = false;
-        flagFaceRight = false;
-        flagFaceId = false;
-    }
-
 }
